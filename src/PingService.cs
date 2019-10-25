@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Imp.OscPinger
 {
@@ -36,32 +37,43 @@ namespace Imp.OscPinger
 	public class PingService
 	{
 		IReadOnlyList<PingTask> _pingTasks;
+		int _timeout;
 
-		public PingService(IEnumerable<PingTask> pingTasks)
+		public PingService(IEnumerable<PingTask> pingTasks, int timeout)
 		{
 			_pingTasks = pingTasks.ToList();
+			_timeout = timeout;
 		}
 
 		public void SendPings()
 		{
+			var pingReplies = new List<Tuple<Task<PingReply>, PingTask>>();
+
 			foreach(var t in _pingTasks)
 			{
 				Ping pingSender = new Ping();
-				PingOptions options = new PingOptions();
-
-				// Use the default Ttl value which is 128,
-				// but change the fragmentation behavior.
-				options.DontFragment = true;
+				PingOptions options = new PingOptions
+				{
+					DontFragment = true
+				};
 
 				// Create a buffer of 32 bytes of data to be transmitted.
-				string data = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-				byte[] buffer = Encoding.ASCII.GetBytes(data);
-				int timeout = 120;
-				PingReply reply = pingSender.Send(t.Address, timeout, buffer, options);
-				if (reply.Status == IPStatus.Success)
-					OnPingResult?.Invoke(this, new PingResultArgs(t, (int)reply.RoundtripTime));
+				byte[] buffer = Encoding.ASCII.GetBytes("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+				PingReply reply = pingSender.Send(t.Address, _timeout, buffer, options);
+				
+
+				pingReplies.Add(Tuple.Create(pingSender.SendPingAsync(t.Address, _timeout, buffer, options), t));
+			}
+
+			Task.WhenAll(pingReplies.Select(t => t.Item1)).Wait();
+
+			foreach (var t in pingReplies)
+			{
+				if (t.Item1.IsCompletedSuccessfully && t.Item1.Result.Status == IPStatus.Success)
+					OnPingResult?.Invoke(this, new PingResultArgs(t.Item2, (int)t.Item1.Result.RoundtripTime));
 				else
-					OnPingResult?.Invoke(this, new PingResultArgs(t, -1));
+					OnPingResult?.Invoke(this, new PingResultArgs(t.Item2, -1));
 			}
 		}
 

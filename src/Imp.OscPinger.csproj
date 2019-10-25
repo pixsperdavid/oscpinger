@@ -15,4 +15,14 @@
     <PackageReference Include="FluentCommandLineParser-netstandard" Version="1.4.3.13" />
     <PackageReference Include="CsvHelper" Version="12.1.2" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <PublishTrimmed>true</PublishTrimmed>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishSingleFile>true</PublishSingleFile>
+    <RuntimeIdentifier>osx-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
 </Project>

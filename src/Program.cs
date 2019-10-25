@@ -17,6 +17,7 @@ namespace Imp.OscPinger
 		public List<string> Targets { get; set; }
 		public int Port { get; set; }
 		public int Interval { get; set; }
+		public int Timeout { get; set; }
 	}
 
 	public struct ConfigEntry
@@ -33,6 +34,11 @@ namespace Imp.OscPinger
 	{
 		static void Main(string[] args)
 		{
+			Console.WriteLine($"--------------------------------------------------------------------------------");
+			Console.WriteLine($"OSC Pinger v0.1.0 by David Butler");
+			Console.WriteLine($"--------------------------------------------------------------------------------");
+			Console.WriteLine("");
+
 			var p = new FluentCommandLineParser<ApplicationArguments>();
 
 			p.Setup(arg => arg.ConfigurationFilePath)
@@ -50,6 +56,10 @@ namespace Imp.OscPinger
 			p.Setup(arg => arg.Interval)
 				.As('i', "interval")
 				.SetDefault(1000);
+
+			p.Setup(arg => arg.Timeout)
+				.As('o', "timeout")
+				.SetDefault(120);
 
 			var result = p.Parse(args);
 
@@ -121,6 +131,13 @@ namespace Imp.OscPinger
 				Environment.Exit(-1);
 			}
 
+			int timeout = p.Object.Timeout;
+			if (timeout < 10 || timeout > 10000)
+			{
+				Console.WriteLine($"Invalid interval time '{interval}'. Timeout is specified in ms and must be between 10 and 10000.");
+				Environment.Exit(-1);
+			}
+
 			var targets = new List<IPAddress>();
 
 			foreach(var t in p.Object.Targets)
@@ -134,14 +151,33 @@ namespace Imp.OscPinger
 				targets.Add(ip);
 			}
 
+			Console.WriteLine($"Sending pings to targets every {interval} ms with timeout of {timeout} ms");
+			Console.WriteLine($"Sending OSC to UDP port {port} at IP(s) {string.Join(", ", targets.Select(t => t.ToString()))}");
+			Console.WriteLine("");
+
 			var oscService = new OscService(port, targets);
-			var pingService = new PingService(pingTasks);
-			pingService.OnPingResult += (s, e) => oscService.SendStatus(e.Ping, e.Task.OscAddress);
+			var pingService = new PingService(pingTasks, timeout);
+			pingService.OnPingResult += (s, e) =>
+			{
+				if (e.Ping < 0)
+					Console.WriteLine($"{DateTime.Now} - No response from {e.Task.Label} ({e.Task.Address})");
+				else
+					Console.WriteLine($"{DateTime.Now} - Response from {e.Task.Label} ({e.Task.Address}) with ping time of {e.Ping}");
+
+				oscService.SendStatus(e.Ping, e.Task.OscAddress);
+			};
 
 			while(true)
 			{
+				Console.WriteLine($"{DateTime.Now} - Sending pings...");
+
 				pingService.SendPings();
+
+				Console.WriteLine($"{DateTime.Now} - Finished sending pings");
+				Console.WriteLine("");
+
 				Thread.Sleep(interval);
+				
 			}
 		}
 	}
