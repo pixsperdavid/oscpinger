@@ -1,22 +1,27 @@
 ﻿using System;
 using System.IO;
 using System.Net;
-using Fclp;
 using CsvHelper;
 using CsvHelper.Configuration.Attributes;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
+using CommandLine;
 
 namespace Imp.OscPinger
 {
-	public class ApplicationArguments
+	public class Options
 	{
+		[Option('c', "config", Required = true, HelpText = "Path to configuration csv file.")]
 		public string ConfigurationFilePath { get; set; }
-		public List<string> Targets { get; set; }
+		[Option('t', "targets", Required = true, HelpText = "Set target IP address(es) to send OSC ping status messages to")]
+		public IEnumerable<string> Targets { get; set; }
+		[Option('p', "port", Required = true, HelpText = "Set targert UDP port to send OSC ping status messages to.")]
 		public int Port { get; set; }
+		[Option('i', "interval", Required = false, Default = 1000, HelpText = "Set interval in ms at which pings are sent.")]
 		public int Interval { get; set; }
+		[Option('o', "timeout", Required = false, Default = 120, HelpText = "Set ping message timeout.")]
 		public int Timeout { get; set; }
 	}
 
@@ -34,46 +39,21 @@ namespace Imp.OscPinger
 	{
 		static void Main(string[] args)
 		{
-			Console.WriteLine($"--------------------------------------------------------------------------------");
-			Console.WriteLine($"OSC Pinger v0.1.0 by David Butler");
-			Console.WriteLine($"--------------------------------------------------------------------------------");
-			Console.WriteLine("");
+			Parser.Default.ParseArguments<Options>(args)
+				.WithParsed(opts => RunOptionsAndReturnExitCode(opts))
+				.WithNotParsed((errs) =>
+				{
+					Environment.Exit(-1);
+				});
+		}
 
-			var p = new FluentCommandLineParser<ApplicationArguments>();
-
-			p.Setup(arg => arg.ConfigurationFilePath)
-				.As('c', "configuration")
-				.Required();
-
-			p.Setup(arg => arg.Targets)
-				.As('t', "targets")
-				.Required();
-
-			p.Setup(arg => arg.Port)
-				.As('p', "port")
-				.Required();
-
-			p.Setup(arg => arg.Interval)
-				.As('i', "interval")
-				.SetDefault(1000);
-
-			p.Setup(arg => arg.Timeout)
-				.As('o', "timeout")
-				.SetDefault(120);
-
-			var result = p.Parse(args);
-
-			if (result.HasErrors)
-			{
-				Console.WriteLine(result.ErrorText);
-				Environment.Exit(-1);
-			}
-
+		static void RunOptionsAndReturnExitCode(Options options)
+		{
 			string configPathAbs = null;
 
 			try
 			{
-				configPathAbs = Path.GetFullPath(p.Object.ConfigurationFilePath);
+				configPathAbs = Path.GetFullPath(options.ConfigurationFilePath);
 			}
 			catch (ArgumentException ex)
 			{
@@ -93,7 +73,7 @@ namespace Imp.OscPinger
 
 					var oscregex = new Regex(@"^\/[^ #*,?\[\]\{\}]+[^ #*,?\[\]\{\}\/]$");
 
-					foreach(var e in entries)
+					foreach (var e in entries)
 					{
 						if (!IPAddress.TryParse(e.Address, out IPAddress ip))
 						{
@@ -117,21 +97,21 @@ namespace Imp.OscPinger
 				Environment.Exit(-1);
 			}
 
-			int port = p.Object.Port;
+			int port = options.Port;
 			if (port < 1 || port > UInt16.MaxValue)
 			{
 				Console.WriteLine($"Invalid UDP port number '{port}'");
 				Environment.Exit(-1);
 			}
 
-			int interval = p.Object.Interval;
+			int interval = options.Interval;
 			if (interval < 500 || interval > 60000)
 			{
 				Console.WriteLine($"Invalid interval time '{interval}'. Interval time is specified in ms and must be between 500 and 60000.");
 				Environment.Exit(-1);
 			}
 
-			int timeout = p.Object.Timeout;
+			int timeout = options.Timeout;
 			if (timeout < 10 || timeout > 10000)
 			{
 				Console.WriteLine($"Invalid interval time '{interval}'. Timeout is specified in ms and must be between 10 and 10000.");
@@ -140,7 +120,7 @@ namespace Imp.OscPinger
 
 			var targets = new List<IPAddress>();
 
-			foreach(var t in p.Object.Targets)
+			foreach (var t in options.Targets)
 			{
 				if (!IPAddress.TryParse(t, out IPAddress ip))
 				{
@@ -151,6 +131,10 @@ namespace Imp.OscPinger
 				targets.Add(ip);
 			}
 
+			Console.WriteLine($"--------------------------------------------------------------------------------");
+			Console.WriteLine($"OSC Pinger v0.1.0 by David Butler");
+			Console.WriteLine($"--------------------------------------------------------------------------------");
+			Console.WriteLine("");
 			Console.WriteLine($"Sending pings to targets every {interval} ms with timeout of {timeout} ms");
 			Console.WriteLine($"Sending OSC to UDP port {port} at IP(s) {string.Join(", ", targets.Select(t => t.ToString()))}");
 			Console.WriteLine("");
@@ -167,7 +151,7 @@ namespace Imp.OscPinger
 				oscService.SendStatus(e.Ping, e.Task.OscAddress);
 			};
 
-			while(true)
+			while (true)
 			{
 				Console.WriteLine($"{DateTime.Now} - Sending pings...");
 
@@ -177,7 +161,7 @@ namespace Imp.OscPinger
 				Console.WriteLine("");
 
 				Thread.Sleep(interval);
-				
+
 			}
 		}
 	}

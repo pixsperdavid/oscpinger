@@ -12,9 +12,14 @@
     </PackageReference>
     <PackageReference Include="System.Net.Ping" Version="4.3.0" />
     <PackageReference Include="OscCore" Version="1.0.5" />
-    <PackageReference Include="FluentCommandLineParser-netstandard" Version="1.4.3.13" />
     <PackageReference Include="CsvHelper" Version="12.1.2" />
+    <PackageReference Include="CommandLineParser" Version="2.6.0" />
   </ItemGroup>
+
+  <PropertyGroup>
+  	<AssemblyTitleAttribute>OscPinger</AssemblyTitleAttribute>
+  	<AssemblyCopyrightAttribute>David Butler</AssemblyCopyrightAttribute>
+  </PropertyGroup>
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
